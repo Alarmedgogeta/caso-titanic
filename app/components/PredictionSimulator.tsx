@@ -5,6 +5,7 @@ import { ChangeEvent, FormEvent, useMemo, useState } from 'react';
 type ModelId = 'dt' | 'rf' | 'lr';
 type Sex = 'male' | 'female';
 type Embarked = 'S' | 'C' | 'Q';
+type CsvChartGroup = 'sex' | 'pclass';
 
 interface PassengerInput {
   Pclass: number;
@@ -28,6 +29,8 @@ interface ModelPrediction {
   probabilityDied: number;
   confidence: number;
   features: {
+    Pclass: number;
+    Sex: Sex;
     FamilySize: number;
     IsAlone: boolean;
     Title: string;
@@ -220,6 +223,7 @@ export default function PredictionSimulator() {
   const [csvResult, setCsvResult] = useState<CsvPredictionResponse | null>(null);
   const [csvError, setCsvError] = useState<string | null>(null);
   const [isUploadingCsv, setIsUploadingCsv] = useState(false);
+  const [csvChartGroup, setCsvChartGroup] = useState<CsvChartGroup>('sex');
 
   const passengerInput = useMemo<PassengerInput>(
     () => ({
@@ -241,6 +245,38 @@ export default function PredictionSimulator() {
   );
   const inactiveBtn =
     'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600';
+  const csvDistribution = useMemo(() => {
+    if (!csvResult) return [];
+
+    const labels =
+      csvChartGroup === 'sex'
+        ? [
+            { key: 'female', label: 'Mujer' },
+            { key: 'male', label: 'Hombre' },
+          ]
+        : [
+            { key: '1', label: '1ª clase' },
+            { key: '2', label: '2ª clase' },
+            { key: '3', label: '3ª clase' },
+          ];
+
+    return labels.map(({ key, label }) => {
+      const rows = csvResult.results.filter((row) =>
+        csvChartGroup === 'sex' ? row.features.Sex === key : String(row.features.Pclass) === key
+      );
+      const survived = rows.filter((row) => row.prediction === 1).length;
+      const notSurvived = rows.length - survived;
+
+      return {
+        key,
+        label,
+        survived,
+        notSurvived,
+        total: rows.length,
+        survivedRate: rows.length === 0 ? 0 : survived / rows.length,
+      };
+    });
+  }, [csvChartGroup, csvResult]);
 
   async function handlePassengerSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -301,7 +337,8 @@ export default function PredictionSimulator() {
       if (!response.ok) {
         throw new Error(payload.error || `Error ${response.status}`);
       }
-      setCsvResult(payload as CsvPredictionResponse);
+        setCsvResult(payload as CsvPredictionResponse);
+        setCsvChartGroup('sex');
     } catch (error) {
       setCsvError(error instanceof Error ? error.message : 'No se pudo procesar el CSV.');
     } finally {
@@ -630,6 +667,96 @@ export default function PredictionSimulator() {
                 <p className="text-xl font-black text-indigo-700 dark:text-indigo-300">
                   {Math.round(csvResult.summary.averageSurvivalProbability * 100)}%
                 </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-700/40">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h4 className="font-bold text-slate-800 dark:text-white">
+                    ¿Cómo se distribuyen las predicciones por sexo o clase social?
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Barras apiladas por resultado predicho en el CSV procesado.
+                  </p>
+                </div>
+                <div className="flex rounded-lg bg-white p-1 dark:bg-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setCsvChartGroup('sex')}
+                    className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${
+                      csvChartGroup === 'sex'
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    Sexo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCsvChartGroup('pclass')}
+                    className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${
+                      csvChartGroup === 'pclass'
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    Clase social
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {csvDistribution.map((group) => {
+                  const survivedWidth = group.total === 0 ? 0 : Math.round((group.survived / group.total) * 100);
+                  const notSurvivedWidth = group.total === 0 ? 0 : 100 - survivedWidth;
+
+                  return (
+                    <div key={group.key} className="grid gap-2 sm:grid-cols-[110px_1fr_130px] sm:items-center">
+                      <div>
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{group.label}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">{group.total} pasajeros</p>
+                      </div>
+                      <div className="h-8 overflow-hidden rounded-lg bg-slate-200 dark:bg-slate-800">
+                        {group.total > 0 ? (
+                          <div className="flex h-full">
+                            <div
+                              className="flex items-center justify-center bg-emerald-500 text-xs font-bold text-white transition-all"
+                              style={{ width: `${survivedWidth}%` }}
+                            >
+                              {survivedWidth >= 16 ? group.survived : ''}
+                            </div>
+                            <div
+                              className="flex items-center justify-center bg-rose-500 text-xs font-bold text-white transition-all"
+                              style={{ width: `${notSurvivedWidth}%` }}
+                            >
+                              {notSurvivedWidth >= 16 ? group.notSurvived : ''}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex h-full items-center px-3 text-xs text-slate-400">Sin registros</div>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 sm:text-right">
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                          {Math.round(group.survivedRate * 100)}%
+                        </span>{' '}
+                        supervivencia
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-4 text-xs text-slate-500 dark:text-slate-400">
+                <span>
+                  <span className="mr-1 inline-block h-3 w-3 rounded-sm bg-emerald-500 align-middle" />
+                  Sobrevivió
+                </span>
+                <span>
+                  <span className="mr-1 inline-block h-3 w-3 rounded-sm bg-rose-500 align-middle" />
+                  No sobrevivió
+                </span>
               </div>
             </div>
 
