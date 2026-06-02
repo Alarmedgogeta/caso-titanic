@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/**/*.py": {
-      "includeFiles": "public/model/*.pkl",
+    "api/python/**/*.py": {
+      "includeFiles": "api/model/*.pkl",
       "excludeFiles": "{public/model/data-source/**,public/model/*.ipynb,**/__pycache__/**}"
     }
   }

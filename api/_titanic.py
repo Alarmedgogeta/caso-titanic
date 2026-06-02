@@ -57,7 +57,21 @@ TITLE_MEDIAN_AGE = {
     "Rare": 48.5,
 }
 
-MODEL_DIR = Path.cwd() / "public" / "model"
+def get_model_dir() -> Path:
+    candidates = [
+        Path(__file__).resolve().parent / "model",
+        Path.cwd() / "api" / "model",
+        Path.cwd() / "public" / "model",
+    ]
+
+    for candidate in candidates:
+        if (candidate / "modelo_RF_titanic.pkl").exists():
+            return candidate
+
+    return candidates[0]
+
+
+MODEL_DIR = get_model_dir()
 
 
 @lru_cache(maxsize=None)
